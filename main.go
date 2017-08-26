@@ -1,27 +1,3 @@
-//package main
-//
-//import (
-//	"github.com/nats-io/nats"
-//	"fmt"
-//	"time"
-//	"os"
-//	"log"
-//	"io/ioutil"
-//	"encoding/json"
-//	"net/http"
-//)
-//
-//func main (){
-//	nc, err := nats.Connect(nats.DefaultURL)
-//	if err != nil {
-//		panic(fmt.Sprintf("Cannot connect to NATS: %s", err))
-//	}
-//	defer nc.Close()
-//
-//	resp, err := nc.Request("dataservice.get.1234.lastscan", []byte{}, time.Second)
-//	fmt.Printf("Body recieved: %s", string(resp.Data))
-//}
-
 package main
 
 import (
@@ -70,18 +46,6 @@ func main() {
 		if r.Method != "GET" {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			fmt.Fprintf(w, "405 method not allowed")
-			return
-		}
-
-		if r.Header.Get("AuthToken") == "" {
-			w.WriteHeader(http.StatusUnauthorized)
-			fmt.Fprintf(w, "401 unauthorized")
-			return
-		}
-
-		if r.Header.Get("AuthToken") == "bad_token" {
-			w.WriteHeader(http.StatusUnauthorized)
-			fmt.Fprintf(w, "401 unauthorized")
 			return
 		}
 
@@ -152,8 +116,9 @@ func main() {
 			return
 		}
 
+		_, err = nc.Request("controller.fb_login", []byte(loginReq.FbToken), 10 * time.Second)
 		w.Header().Set("Content-Type", "application/json")
-		GiveResponseFile("responses/POST_api_login.json",w)
+		//todo send back response
 	})
 
 	http.Handle("/", http.FileServer(http.Dir(config.StaticFilePath)))
@@ -176,17 +141,7 @@ func EveryCall(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("%s %s %s", r.RemoteAddr, r.Method, r.URL)
 
-		// determine origin header
-		origin := r.Header.Get("Origin")
-
-		for _, orgn := range config.Origins {
-			log.Printf("Request Origin: %s Trusted Origin: %s",origin, orgn)
-			if orgn == origin {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				break
-			}
-		}
-
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD")
 		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Response-Type, If-Modified-Since")
@@ -195,10 +150,23 @@ func EveryCall(handler http.Handler) http.Handler {
 			//return just headers
 			return
 		}
+
+		if len(r.URL.Path) >= 4 && r.URL.Path[0:4] == "/api" &&
+				r.URL.Path != "/api/login" {
+
+
+			if r.Header.Get("AuthToken") == "" {
+				w.WriteHeader(http.StatusUnauthorized)
+				fmt.Fprintf(w, "401 unauthorized")
+				return
+			}
+
+			if r.Header.Get("AuthToken") == "bad_token" {
+				w.WriteHeader(http.StatusUnauthorized)
+				fmt.Fprintf(w, "401 unauthorized")
+				return
+			}
+		}
 		handler.ServeHTTP(w, r)
 	})
-}
-
-func getSales (){
-
 }
